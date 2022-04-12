@@ -20,6 +20,9 @@ public:
 	int numberToSpawn;
 	UPROPERTY(EditAnywhere, Category = Parameters)
 	float spawnRadius;
+	UPROPERTY(EditAnywhere, Category = Parameters)
+	bool onFloor;
+	
 
 protected:
 	// Called when the game starts or when spawned
@@ -31,4 +34,7 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category="Spawn")
 	void SpawnObjects();
+
+private:
+	FVector Raycast(FVector start, FVector end);
 };
