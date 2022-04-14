@@ -65,7 +65,10 @@ void AProceduraleObjectSpawner::ShowSpawnRadius(float durationVisible, FLinearCo
 void AProceduraleObjectSpawner::SpawnObjects()
 {
 	if (onFloor && onCeiling)
+	{
 		GEngine->AddOnScreenDebugMessage(-1, 2.5f, FColor::Yellow, TEXT("[ProceduraleObjectSpawner] Object can't be on floor and ceiling at the same time"));
+		return;
+	}
 	
 	FVector const spawnPosition = GetActorLocation();
 	FRotator spawnRotation = GetActorRotation();
