@@ -59,7 +59,7 @@ void AProceduraleObjectSpawner::ShowSpawnRadius(float durationVisible, FLinearCo
 {
 	FVector extent = FVector(1,1,1);
 	extent.Normalize();
-	UKismetSystemLibrary::DrawDebugBox(this, GetActorLocation(), spawnRadius * extent,  sphereColor, FRotator::ZeroRotator, durationVisible, thickness);
+	UKismetSystemLibrary::DrawDebugBox(this, GetActorLocation(), 2 * spawnRadius * extent,  sphereColor, FRotator::ZeroRotator, durationVisible, thickness);
 }
 
 void AProceduraleObjectSpawner::SpawnObjects()
