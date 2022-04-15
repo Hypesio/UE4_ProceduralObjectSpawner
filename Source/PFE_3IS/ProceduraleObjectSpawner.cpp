@@ -4,6 +4,7 @@
 #include "ProceduraleObjectSpawner.h"
 
 #include "DrawDebugHelpers.h"
+#include "EditorLevelUtils.h"
 #include "Kismet/KismetMathLibrary.h"
 #include "Kismet/KismetSystemLibrary.h"
 
@@ -59,7 +60,7 @@ void AProceduraleObjectSpawner::ShowSpawnRadius(float durationVisible, FLinearCo
 {
 	FVector extent = FVector(1,1,1);
 	extent.Normalize();
-	UKismetSystemLibrary::DrawDebugBox(this, GetActorLocation(), 2 * spawnRadius * extent,  sphereColor, FRotator::ZeroRotator, durationVisible, thickness);
+	UKismetSystemLibrary::DrawDebugSphere(this, GetActorLocation(), spawnRadius,  16, sphereColor, durationVisible, thickness);
 }
 
 void AProceduraleObjectSpawner::SpawnObjects()
@@ -70,19 +71,19 @@ void AProceduraleObjectSpawner::SpawnObjects()
 		return;
 	}
 	
-	FVector const spawnPosition = GetActorLocation();
+	FVector const spawnerPosition = GetActorLocation();
 	FRotator spawnRotation = GetActorRotation();
 	UWorld* const world = GetWorld();
 
-	//FVector refPos = spawnPosition + FVector::ForwardVector * spawnRadius * 2;
 	// Create a reference to have mesh bounds data
-	//AActor* actorReference = world->SpawnActor(blueprintToSpawn, &refPos, &spawnRotation);
+	FVector refPos = spawnerPosition + FVector::ForwardVector * spawnRadius * 2;
+	AActor* actorReference = world->SpawnActor(blueprintToSpawn, &refPos, &spawnRotation);
 
-	/*UStaticMeshComponent* staticMeshComp = actorReference->FindComponentByClass<UStaticMeshComponent>();
+	UStaticMeshComponent* staticMeshComp = actorReference->FindComponentByClass<UStaticMeshComponent>();
 	UStaticMesh* staticMesh = staticMeshComp->GetStaticMesh();
 	FBoxSphereBounds meshBounds;
 	if (staticMesh != NULL)
-		meshBounds = staticMesh->GetBounds();*/
+		meshBounds = staticMesh->GetBounds();
 
 	int nbSpawned = 0;
 	int maxTry = numberToSpawn * 3;
@@ -92,45 +93,53 @@ void AProceduraleObjectSpawner::SpawnObjects()
 		nbTry ++;
 		float posX, posY, posZ;
 		
-		posX = FMath::FRandRange(spawnPosition.X - spawnRadius, spawnPosition.X + spawnRadius);
-		posY = FMath::FRandRange(spawnPosition.Y - spawnRadius, spawnPosition.Y + spawnRadius);
-		posZ = FMath::FRandRange(spawnPosition.Z - spawnRadius, spawnPosition.Z + spawnRadius);
+		posX = FMath::FRandRange(spawnerPosition.X - spawnRadius, spawnerPosition.X + spawnRadius);
+		posY = FMath::FRandRange(spawnerPosition.Y - spawnRadius, spawnerPosition.Y + spawnRadius);
+		posZ = FMath::FRandRange(spawnerPosition.Z - spawnRadius, spawnerPosition.Z + spawnRadius);
 
 		FVector placeToSpawn = FVector(posX, posY, posZ);
 
 		if (onFloor || onWall || onCeiling)
 		{
+			
 			FVector start, end;
 			if (onFloor)
 			{
 				start = FVector(posX, posY,GetActorLocation().Z);
-				end = start + spawnRadius/2 * FVector::DownVector;
+				float distance = FVector::Distance(spawnerPosition, start);
+				end = start + (spawnRadius - distance) * FVector::DownVector;
 			}
 			else if (onWall)
 			{
 				start = GetActorLocation();
 				FVector direction = (placeToSpawn - start);
 				direction.Normalize();
-				end = start + direction * spawnRadius/2;
+				end = start + (direction * spawnRadius);
+				// Todo check l'angle de la zone touché pour s'assure que c'est un mur range: 75° -> 105°
 			}
 			else if (onCeiling)
 			{
 				start = FVector(posX, GetActorLocation().Y,posZ);
-				end = start + spawnRadius/2 * FVector::UpVector;
+				float distance = FVector::Distance(spawnerPosition, start);
+				end = start + (spawnRadius - distance) * FVector::UpVector;
 			}
 			FHitResult outHit; 
 			FVector pointHit = Raycast(start, end, outHit);
 			placeToSpawn = pointHit;
 
-			// We want objectDirection and Surface Normal to be colinear
-			/*FVector surfaceNormal = outHit.ImpactNormal;
-			FVector objectDirection = meshBounds.Origin;
-			DrawDebugLine(GetWorld(), placeToSpawn, placeToSpawn + surfaceNormal * 10, FColor::Orange, false, 3.5f, 0, 1);
-			DrawDebugLine(GetWorld(), placeToSpawn, placeToSpawn + objectDirection * 10, FColor::Blue, false, 3.5f, 0, 1);
+			// We want objectDirection and Surface Normal to be collinear
+			FVector surfaceNormal = outHit.ImpactNormal;
+			FVector objectDirection = actorReference->GetActorForwardVector();
+			
+			DrawDebugLine(GetWorld(), placeToSpawn, placeToSpawn + (surfaceNormal * 45), FColor::Orange, false, 3.5f, 0, 1);
+			DrawDebugLine(GetWorld(), placeToSpawn, placeToSpawn + (objectDirection * 45), FColor::Blue, false, 3.5f, 0, 1);
 			
 			float angleRotation = FVector::DotProduct(surfaceNormal, objectDirection);
 			angleRotation = UKismetMathLibrary::DegAcos(angleRotation);
-			spawnRotation = surfaceNormal.RotateAngleAxis(angleRotation, FVector::UpVector).ToOrientationRotator();*/
+			if (onFloor || onCeiling)
+				spawnRotation = surfaceNormal.RotateAngleAxis(angleRotation, FVector::UpVector).ToOrientationRotator();
+			else
+				spawnRotation = surfaceNormal.RotateAngleAxis(angleRotation, FVector::RightVector).ToOrientationRotator();
 		}
 
 		if (spawnPlaceMustBeVisible)
@@ -155,6 +164,6 @@ void AProceduraleObjectSpawner::SpawnObjects()
 	
 	if (nbTry == maxTry)
 		GEngine->AddOnScreenDebugMessage(-1, 2.5f, FColor::Yellow, TEXT("[ProceduraleObjectSpawner] Can't spawn the amount of object wanted"));
-
-	//actorReference->Destroy();
+	
+	actorReference->Destroy();
 }
