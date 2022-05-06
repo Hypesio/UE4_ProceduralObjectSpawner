@@ -14,20 +14,35 @@ class PFE_3IS_API AProceduraleObjectSpawner : public AActor
 public:	
 	// Sets default values for this actor's properties
 	AProceduraleObjectSpawner();
-    UPROPERTY(EditAnywhere, Category = Parameters)
+    UPROPERTY(EditAnywhere, Category = MainParameters)
     UClass* blueprintToSpawn;
-    UPROPERTY(EditAnywhere, Category = Parameters)
+    UPROPERTY(EditAnywhere, Category = MainParameters)
     int numberToSpawn;
-    UPROPERTY(EditAnywhere, Category = Parameters)
+    UPROPERTY(EditAnywhere, Category = MainParameters)
     float spawnRadius;
-    UPROPERTY(EditAnywhere, Category = Parameters)
+    UPROPERTY(EditAnywhere, Category = MainParameters)
     bool onFloor;
-	UPROPERTY(EditAnywhere, Category = Parameters)
+	UPROPERTY(EditAnywhere, Category = MainParameters)
 	bool onCeiling;
-	UPROPERTY(EditAnywhere, Category = Parameters)
+	UPROPERTY(EditAnywhere, Category = MainParameters)
 	bool onWall;
-	UPROPERTY(EditAnywhere, Category = Parameters)
-	bool spawnPlaceMustBeVisible;
+	UPROPERTY(EditAnywhere, Category = MainParameters)
+	bool spawnPlaceMustBeVisible = true;
+
+	UPROPERTY(EditAnywhere, Category = AdvancedParameters)
+	bool alignObjectWithSurface = true;
+	UPROPERTY(EditAnywhere, Category = AdvancedParameters)
+	bool randomXRotation;
+	UPROPERTY(EditAnywhere, Category = AdvancedParameters)
+	bool randomYRotation;
+	UPROPERTY(EditAnywhere, Category = AdvancedParameters)
+	bool randomZRotation;
+
+	UPROPERTY(EditAnywhere, Category = AdvancedParameters)
+	float wallMinAngle = 75;
+	UPROPERTY(EditAnywhere, Category = AdvancedParameters)
+	float wallMaxAngle = 115;
+	
     	
 protected:
 	// Called when the game starts or when spawned

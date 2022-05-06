@@ -4,7 +4,6 @@
 #include "ProceduraleObjectSpawner.h"
 
 #include "DrawDebugHelpers.h"
-#include "EditorLevelUtils.h"
 #include "Kismet/KismetMathLibrary.h"
 #include "Kismet/KismetSystemLibrary.h"
 
@@ -63,21 +62,32 @@ void AProceduraleObjectSpawner::ShowSpawnRadius(float durationVisible, FLinearCo
 	UKismetSystemLibrary::DrawDebugSphere(this, GetActorLocation(), spawnRadius,  16, sphereColor, durationVisible, thickness);
 }
 
+FRotator RandomRotation(FRotator startRotation, bool randomX, bool randomY, bool randomZ)
+{
+	if (randomX)
+	{
+		startRotation.Roll = FMath::RandRange(0,360); 
+	}
+	if (randomY)
+	{
+		startRotation.Pitch = FMath::RandRange(0,360); 
+	}
+	if (randomZ)
+	{
+		startRotation.Yaw = FMath::RandRange(0,360); 
+	}
+	return startRotation;
+}
+
 void AProceduraleObjectSpawner::SpawnObjects()
 {
-	if (onFloor && onCeiling)
-	{
-		GEngine->AddOnScreenDebugMessage(-1, 2.5f, FColor::Yellow, TEXT("[ProceduraleObjectSpawner] Object can't be on floor and ceiling at the same time"));
-		return;
-	}
-	
 	FVector const spawnerPosition = GetActorLocation();
-	FRotator spawnRotation = GetActorRotation();
+	FRotator startRotation = GetActorRotation();
 	UWorld* const world = GetWorld();
 
 	// Create a reference to have mesh bounds data
 	FVector refPos = spawnerPosition + FVector::ForwardVector * spawnRadius * 2;
-	AActor* actorReference = world->SpawnActor(blueprintToSpawn, &refPos, &spawnRotation);
+	AActor* actorReference = world->SpawnActor(blueprintToSpawn, &refPos, &startRotation);
 
 	UStaticMeshComponent* staticMeshComp = actorReference->FindComponentByClass<UStaticMeshComponent>();
 	UStaticMesh* staticMesh = staticMeshComp->GetStaticMesh();
@@ -86,7 +96,7 @@ void AProceduraleObjectSpawner::SpawnObjects()
 		meshBounds = staticMesh->GetBounds();
 
 	int nbSpawned = 0;
-	int maxTry = numberToSpawn * 3;
+	int maxTry = numberToSpawn * 10;
 	int nbTry = 0;
 	while (nbSpawned < numberToSpawn && nbTry < maxTry)
 	{
@@ -98,26 +108,29 @@ void AProceduraleObjectSpawner::SpawnObjects()
 		posZ = FMath::FRandRange(spawnerPosition.Z - spawnRadius, spawnerPosition.Z + spawnRadius);
 
 		FVector placeToSpawn = FVector(posX, posY, posZ);
+		AActor* surfaceTouched = NULL;
+
+		FRotator spawnRotation = RandomRotation(startRotation, randomXRotation, randomYRotation, randomZRotation);
 
 		if (onFloor || onWall || onCeiling)
 		{
-			
 			FVector start, end;
-			if (onFloor)
-			{
-				start = FVector(posX, posY,GetActorLocation().Z);
-				float distance = FVector::Distance(spawnerPosition, start);
-				end = start + (spawnRadius - distance) * FVector::DownVector;
-			}
-			else if (onWall)
+			// Use when obj can spawn on floor and ceiling
+			bool callFloor = FMath::RandRange(0,1) == 0; 
+			if (onWall)
 			{
 				start = GetActorLocation();
 				FVector direction = (placeToSpawn - start);
 				direction.Normalize();
 				end = start + (direction * spawnRadius);
-				// Todo check l'angle de la zone touché pour s'assure que c'est un mur range: 75° -> 105°
 			}
-			else if (onCeiling)
+			else if (onFloor && (!onCeiling || callFloor))
+			{
+				start = FVector(posX, posY,GetActorLocation().Z);
+				float distance = FVector::Distance(spawnerPosition, start);
+				end = start + (spawnRadius - distance) * FVector::DownVector;
+			}
+			else if (onCeiling && (!onFloor || !callFloor))
 			{
 				start = FVector(posX, GetActorLocation().Y,posZ);
 				float distance = FVector::Distance(spawnerPosition, start);
@@ -127,19 +140,47 @@ void AProceduraleObjectSpawner::SpawnObjects()
 			FVector pointHit = Raycast(start, end, outHit);
 			placeToSpawn = pointHit;
 
-			// We want objectDirection and Surface Normal to be collinear
+			// We want objectDirection and Surface Normal to be collinear to correct object rotation
 			FVector surfaceNormal = outHit.ImpactNormal;
+			surfaceTouched = outHit.GetActor();
 			FVector objectDirection = actorReference->GetActorForwardVector();
-			
+
+			// Check the surface normal angle to differentiate wall / floor / celling
+			float angleSurface = FMath::RadiansToDegrees(acos(FVector::DotProduct(surfaceNormal, FVector::DownVector)));
+			UE_LOG(LogTemp, Warning, TEXT("Angle touched %f"), angleSurface);
+			bool surfaceIsWall = angleSurface >= wallMinAngle && angleSurface <= wallMaxAngle;
+			bool surfaceIsFloor = !surfaceIsWall && outHit.ImpactPoint.Z < spawnerPosition.Z;
+			if ((!onFloor && !onCeiling && onWall) && !surfaceIsWall)
+				continue;
+			else if (!onWall && surfaceIsWall)
+				continue;
+			else if ((!onFloor && surfaceIsFloor) || (!onCeiling && !surfaceIsFloor && !surfaceIsWall))
+				continue;
+
 			DrawDebugLine(GetWorld(), placeToSpawn, placeToSpawn + (surfaceNormal * 45), FColor::Orange, false, 3.5f, 0, 1);
 			DrawDebugLine(GetWorld(), placeToSpawn, placeToSpawn + (objectDirection * 45), FColor::Blue, false, 3.5f, 0, 1);
-			
-			float angleRotation = FVector::DotProduct(surfaceNormal, objectDirection);
-			angleRotation = UKismetMathLibrary::DegAcos(angleRotation);
-			if (onFloor || onCeiling)
-				spawnRotation = surfaceNormal.RotateAngleAxis(angleRotation, FVector::UpVector).ToOrientationRotator();
-			else
-				spawnRotation = surfaceNormal.RotateAngleAxis(angleRotation, FVector::RightVector).ToOrientationRotator();
+
+			if (alignObjectWithSurface)
+			{
+				float angleRotation = FVector::DotProduct(surfaceNormal, objectDirection);
+				if ((surfaceNormal + objectDirection).Size() <= objectDirection.Size())
+				{
+					// If vectors are opposed 
+					angleRotation = 180;
+				}
+				angleRotation = UKismetMathLibrary::DegAcos(angleRotation);
+				if (!surfaceIsWall)
+					spawnRotation = surfaceNormal.RotateAngleAxis(angleRotation, FVector::UpVector).ToOrientationRotator();
+				else
+					spawnRotation = surfaceNormal.RotateAngleAxis(angleRotation, FVector::RightVector).ToOrientationRotator();
+
+				if (randomXRotation || randomYRotation || randomZRotation)
+				{
+					float angleRotate = FMath::RandRange(0.0f, 360.0f);
+					FVector vectorRotated = UKismetMathLibrary::RotateAngleAxis(spawnRotation.Vector(), angleRotate, surfaceNormal);
+					spawnRotation = vectorRotated.Rotation();
+				}
+			}
 		}
 
 		if (spawnPlaceMustBeVisible)
@@ -147,7 +188,7 @@ void AProceduraleObjectSpawner::SpawnObjects()
 			// Is there something between spawn point and actor location ?
 			FHitResult outHit;
 			FVector objectInPath = Raycast(GetActorLocation(), placeToSpawn, outHit);
-			if (objectInPath != placeToSpawn && objectInPath != FVector::ZeroVector)
+			if (objectInPath != placeToSpawn && objectInPath != FVector::ZeroVector && (surfaceTouched == NULL && outHit.GetActor() != surfaceTouched))
 			{
 				continue;
 			}
@@ -155,7 +196,7 @@ void AProceduraleObjectSpawner::SpawnObjects()
 		
 		if (placeToSpawn != FVector::ZeroVector)
 		{
-			// Todo do a sphere cast to check if place is free before spawn
+			// Todo do a shape cast to check if place is free before spawn
 			world->SpawnActor(blueprintToSpawn, &placeToSpawn, &spawnRotation);
 				
 			nbSpawned ++;
