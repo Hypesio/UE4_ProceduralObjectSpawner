@@ -35,7 +35,8 @@ FVector AProceduraleObjectSpawner::Raycast(FVector start, FVector end, FHitResul
 	FCollisionQueryParams collisionQueryParams;
 	collisionQueryParams.AddIgnoredActor(this->GetOwner());
 
-	DrawDebugLine(GetWorld(), start, end, FColor::Green, false, 2.5f, 0, 1);
+	if (showRaycast)
+		DrawDebugLine(GetWorld(), start, end, FColor::Green, false, 2.5f, 0, 1);
 
 	bool isHit = GetWorld()->LineTraceSingleByChannel(outHit, start, end, ECC_Visibility, collisionQueryParams);
 
@@ -45,14 +46,27 @@ FVector AProceduraleObjectSpawner::Raycast(FVector start, FVector end, FHitResul
 	return outHit.ImpactPoint;
 }
 
-bool AProceduraleObjectSpawner::SphereCast(FVector start, FVector end, float radius, AActor *actorToIgnore)
+bool AProceduraleObjectSpawner::SphapeCast(FVector placeToCheck, const AActor* actorToSpawn, const AActor *actorToIgnore)
 {
-	FHitResult outHit;
+	TArray<FHitResult> outHits;
 	FCollisionShape shape = FCollisionShape();
-	shape.SetSphere(radius);
+	shape.ShapeType = ECollisionShape::Capsule;
+	actorToSpawn->GetSimpleCollisionCylinder(shape.Capsule.Radius, shape.Capsule.HalfHeight);
 	
-	bool isHit = GetWorld()->SweepSingleByChannel(outHit, start, end, FQuat::Identity, ECC_Visibility, shape);
-	return isHit;
+	const FQuat rotation = actorToSpawn->GetActorRotation().Quaternion();
+	if (GetWorld()->SweepMultiByChannel(outHits, placeToCheck, placeToCheck, rotation, ECC_Visibility, shape))
+	{
+		for (auto& hit : outHits)
+		{
+			if (hit.GetActor() == actorToIgnore)
+				continue;
+			else 
+				return true;
+		}
+	}
+	
+
+	return false;
 }
 
 void AProceduraleObjectSpawner::ShowSpawnRadius(float durationVisible, FLinearColor sphereColor, float thickness)
@@ -77,6 +91,46 @@ FRotator RandomRotation(FRotator startRotation, bool randomX, bool randomY, bool
 		startRotation.Yaw = FMath::RandRange(0,360); 
 	}
 	return startRotation;
+}
+
+// Return true if we can't spawn the object on the surface specified
+bool IsSurfaceForbidden(const TArray<AActor*> forbiddenActors, const bool isMeshForbidden, const UStaticMesh* meshToSpawn,const AActor* surface)
+{
+	if (surface == NULL)
+		return false;
+	
+	const UStaticMeshComponent* meshComp = surface->FindComponentByClass<UStaticMeshComponent>();
+	if (meshComp == NULL)
+		return false;
+	const UStaticMesh* meshTouched = meshComp->GetStaticMesh();
+	if (meshTouched == NULL)
+		return false;
+	
+	if (meshTouched == meshToSpawn)
+		return true;
+	
+	for (auto& actor : forbiddenActors)
+	{
+		if (isMeshForbidden)
+		{
+			const UStaticMeshComponent* meshCompForbidden = actor->FindComponentByClass<UStaticMeshComponent>();
+			if (meshCompForbidden == nullptr)
+				continue;
+			const UStaticMesh* meshForbidden = meshComp->GetStaticMesh();
+			if (meshTouched == nullptr)
+				continue;
+		
+			if (meshForbidden == meshTouched)
+				return true;
+		}
+		else
+		{
+			if (surface == actor)
+				return true;
+		}
+	}
+	
+	return false;
 }
 
 void AProceduraleObjectSpawner::SpawnObjects()
@@ -112,6 +166,9 @@ void AProceduraleObjectSpawner::SpawnObjects()
 
 		FRotator spawnRotation = RandomRotation(startRotation, randomXRotation, randomYRotation, randomZRotation);
 
+		FVector scale = actorReference->GetActorScale() * FMath::RandRange(scaleMin, scaleMax);
+		actorReference->SetActorScale3D(scale);
+		
 		if (onFloor || onWall || onCeiling)
 		{
 			FVector start, end;
@@ -145,9 +202,13 @@ void AProceduraleObjectSpawner::SpawnObjects()
 			surfaceTouched = outHit.GetActor();
 			FVector objectDirection = actorReference->GetActorForwardVector();
 
+			//Check if the surface touched is forbidden
+			if (IsSurfaceForbidden(forbiddenSpawn, isMeshForbidden, staticMesh, surfaceTouched))
+				continue;
+			
 			// Check the surface normal angle to differentiate wall / floor / celling
 			float angleSurface = FMath::RadiansToDegrees(acos(FVector::DotProduct(surfaceNormal, FVector::DownVector)));
-			UE_LOG(LogTemp, Warning, TEXT("Angle touched %f"), angleSurface);
+			//UE_LOG(LogTemp, Warning, TEXT("Angle touched %f"), angleSurface);
 			bool surfaceIsWall = angleSurface >= wallMinAngle && angleSurface <= wallMaxAngle;
 			bool surfaceIsFloor = !surfaceIsWall && outHit.ImpactPoint.Z < spawnerPosition.Z;
 			if ((!onFloor && !onCeiling && onWall) && !surfaceIsWall)
@@ -157,8 +218,11 @@ void AProceduraleObjectSpawner::SpawnObjects()
 			else if ((!onFloor && surfaceIsFloor) || (!onCeiling && !surfaceIsFloor && !surfaceIsWall))
 				continue;
 
-			DrawDebugLine(GetWorld(), placeToSpawn, placeToSpawn + (surfaceNormal * 45), FColor::Orange, false, 3.5f, 0, 1);
-			DrawDebugLine(GetWorld(), placeToSpawn, placeToSpawn + (objectDirection * 45), FColor::Blue, false, 3.5f, 0, 1);
+			if (showNormals)
+			{
+				DrawDebugLine(GetWorld(), placeToSpawn, placeToSpawn + (surfaceNormal * 45), FColor::Orange, false, 3.5f, 0, 1);
+				DrawDebugLine(GetWorld(), placeToSpawn, placeToSpawn + (objectDirection * 45), FColor::Blue, false, 3.5f, 0, 1);
+			}
 
 			if (alignObjectWithSurface)
 			{
@@ -177,7 +241,8 @@ void AProceduraleObjectSpawner::SpawnObjects()
 				if (randomXRotation || randomYRotation || randomZRotation)
 				{
 					float angleRotate = FMath::RandRange(0.0f, 360.0f);
-					FVector vectorRotated = UKismetMathLibrary::RotateAngleAxis(spawnRotation.Vector(), angleRotate, surfaceNormal);
+					actorReference->SetActorRotation(spawnRotation);
+					FVector vectorRotated = UKismetMathLibrary::RotateAngleAxis(actorReference->GetActorForwardVector(), angleRotate, surfaceNormal);
 					spawnRotation = vectorRotated.Rotation();
 				}
 			}
@@ -197,9 +262,16 @@ void AProceduraleObjectSpawner::SpawnObjects()
 		if (placeToSpawn != FVector::ZeroVector)
 		{
 			// Todo do a shape cast to check if place is free before spawn
-			world->SpawnActor(blueprintToSpawn, &placeToSpawn, &spawnRotation);
-				
+			actorReference->SetActorRotation(spawnRotation);
+			
+			if (SphapeCast(placeToSpawn, actorReference, surfaceTouched))
+				continue;
+			
+			actorReference->SetActorLocation(placeToSpawn);
 			nbSpawned ++;
+			actorReference = world->SpawnActor(blueprintToSpawn, &refPos, &startRotation);
+			staticMeshComp = actorReference->FindComponentByClass<UStaticMeshComponent>();
+			staticMesh = staticMeshComp->GetStaticMesh();
 		}
 	}
 	
