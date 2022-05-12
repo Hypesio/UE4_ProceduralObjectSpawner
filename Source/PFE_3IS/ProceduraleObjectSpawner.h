@@ -6,16 +6,37 @@
 #include "GameFramework/Actor.h"
 #include "ProceduraleObjectSpawner.generated.h"
 
+UENUM()
+enum SpawnType
+{
+	Mesh,
+	Blueprint
+};
+
+UENUM()
+enum ForbiddenType
+{
+	StaticMesh,
+	Actor
+};
+
 UCLASS()
 class PFE_3IS_API AProceduraleObjectSpawner : public AActor
 {
 	GENERATED_BODY()
 	
-public:	
+	
+public:
 	// Sets default values for this actor's properties
 	AProceduraleObjectSpawner();
-    UPROPERTY(EditAnywhere, Category = MainParameters)
+
+	UPROPERTY(EditAnywhere, Category = MainParameters)
+	TEnumAsByte<SpawnType> typeToSpawn;
+    UPROPERTY(EditAnywhere, Category = MainParameters, meta = (EditCondition = "typeToSpawn == SpawnType::Blueprint"))
     UClass* blueprintToSpawn;
+	UPROPERTY(EditAnywhere, Category = MainParameters, meta = (EditCondition = "typeToSpawn == SpawnType::Mesh"))
+	UStaticMesh* meshToSpawn;
+	
     UPROPERTY(EditAnywhere, Category = MainParameters)
     int numberToSpawn;
     UPROPERTY(EditAnywhere, Category = MainParameters)
@@ -32,12 +53,15 @@ public:
 
 	/** Align the object with surface touched. Limit random rotation*/
 	UPROPERTY(EditAnywhere, Category = AdvancedParameters)
-	bool alignObjectWithSurface = true;
+	bool alignObjectWithSurface = false;
+	/** Objects will be at te junction between wall and floor (or ceiling) depending on parameters chosen*/
+	//UPROPERTY(EditAnywhere, Category = AdvancedParameters)
+	bool onlyOnCorner = false;
 	UPROPERTY(EditAnywhere, Category = AdvancedParameters)
 	bool randomXRotation;
-	UPROPERTY(EditAnywhere, Category = AdvancedParameters)
+	UPROPERTY(EditAnywhere, Category = AdvancedParameters, meta = (EditCondition = "!alignObjectWithSurface"))
 	bool randomYRotation;
-	UPROPERTY(EditAnywhere, Category = AdvancedParameters)
+	UPROPERTY(EditAnywhere, Category = AdvancedParameters, meta = (EditCondition = "!alignObjectWithSurface"))
 	bool randomZRotation;
 	
 	/** Warning: size grow really fast stay under 2 to avoid crash */
@@ -47,17 +71,23 @@ public:
     float scaleMin = 1;
 
 	UPROPERTY(EditAnywhere, Category = AdvancedParameters)
-	float wallMinAngle = 75;
-	UPROPERTY(EditAnywhere, Category = AdvancedParameters)
-	float wallMaxAngle = 115;
+	float distanceMinBetweenObjects = 0;
 	
-	/** True => spawn on mesh of same type as actor in list will be forbidden
-	 * False => spawn on actors specified will be forbidden */
+	/** StaticMesh => spawn on mesh of same type as actor in list will be forbidden
+	 * Actor => spawn on actors specified will be forbidden */
 	UPROPERTY(EditAnywhere, Category = AdvancedParameters)
-	bool isMeshForbidden;
+	TEnumAsByte<ForbiddenType> typeForbidden = ForbiddenType::StaticMesh;
 	UPROPERTY(EditAnywhere, Category = AdvancedParameters)
-	TArray<AActor*> forbiddenSpawn;
+	TArray<AActor*> forbiddenList;
 
+	UPROPERTY(EditAnywhere, Category = AdvancedParameters, meta = (ClampMin = "0", ClampMax = "180"))
+	float wallMinAngle = 75;
+	UPROPERTY(EditAnywhere, Category = AdvancedParameters, meta = (ClampMin = "0", ClampMax = "180"))
+	float wallMaxAngle = 115;
+	/** Tell how many positions will be tested : maximumTryMultiplier * numberToSpawn*/
+	UPROPERTY(EditAnywhere, Category = AdvancedParameters)
+	int maximumTryMultiplier = 50;
+	
 	UPROPERTY(EditAnywhere, Category = Debug)
 	bool showRaycast = false;
 	UPROPERTY(EditAnywhere, Category = Debug)
@@ -79,4 +109,5 @@ public:
 private:
     FVector Raycast(FVector start, FVector end, FHitResult& outHit);
 	bool SphapeCast(FVector placeToCheck, const AActor* actorToSpawn, const AActor *actorToIgnore);
+	AActor* SpawnActorNeeded(const FVector spawnPosition, const FRotator spawnRotation);
 };
