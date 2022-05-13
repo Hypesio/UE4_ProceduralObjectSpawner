@@ -49,10 +49,24 @@ FVector AProceduraleObjectSpawner::Raycast(FVector start, FVector end, FHitResul
 
 bool AProceduraleObjectSpawner::SphapeCast(FVector placeToCheck, const AActor* actorToSpawn, const AActor *actorToIgnore)
 {
+	if (allowObjectOverlap)
+		return false;
+		
 	TArray<FHitResult> outHits;
 	FCollisionShape shape = FCollisionShape();
 	shape.ShapeType = ECollisionShape::Capsule;
 	actorToSpawn->GetSimpleCollisionCylinder(shape.Capsule.Radius, shape.Capsule.HalfHeight);
+	UStaticMesh* meshActorToSpawn = nullptr;
+	if (allowObjectSpawnOverlap)
+	{
+		const UStaticMeshComponent* meshComp = actorToSpawn->FindComponentByClass<UStaticMeshComponent>();
+		if (meshComp != NULL)
+		{
+			meshActorToSpawn = meshComp->GetStaticMesh();
+			if (meshActorToSpawn == nullptr)
+				return false;
+		}
+	}
 	
 	const FQuat rotation = actorToSpawn->GetActorRotation().Quaternion();
 	if (GetWorld()->SweepMultiByChannel(outHits, placeToCheck, placeToCheck, rotation, ECC_Visibility, shape))
@@ -61,8 +75,21 @@ bool AProceduraleObjectSpawner::SphapeCast(FVector placeToCheck, const AActor* a
 		{
 			if (hit.GetActor() == actorToIgnore)
 				continue;
-			else 
-				return true;
+			else if (hit.GetActor() == actorToSpawn)
+				continue;
+			else if (allowObjectSpawnOverlap)
+			{
+				const UStaticMeshComponent* meshComp = hit.GetActor()->FindComponentByClass<UStaticMeshComponent>();
+				if (meshComp == NULL)
+					continue;
+				const UStaticMesh* meshTouched = meshComp->GetStaticMesh();
+				if (meshTouched == NULL)
+					continue;
+				if (meshTouched == meshActorToSpawn)
+					continue;
+			}
+			
+			return true;
 		}
 	}
 	
@@ -191,7 +218,7 @@ void AProceduraleObjectSpawner::SpawnObjects()
 	if (actorReference == nullptr)
 		return;
 	TArray<AActor *> actorsSpawned;
-
+	
 	UStaticMeshComponent* staticMeshComp = actorReference->FindComponentByClass<UStaticMeshComponent>();
 	UStaticMesh* staticMesh = staticMeshComp->GetStaticMesh();
 	FBoxSphereBounds meshBounds;
@@ -290,14 +317,27 @@ void AProceduraleObjectSpawner::SpawnObjects()
 				zxMatrix.Yaw = 0;
 				spawnRotation = zxMatrix;
 				actorReference->SetActorRotation(spawnRotation);
+				actorReference->SetActorLocation(placeToSpawn);
 
 				if (randomXRotation || randomYRotation || randomZRotation)
 				{
+					AActor* actorParent = SpawnActorNeeded(actorReference->GetActorLocation(), actorReference->GetActorRotation());
+					
+					actorReference->AttachToActor(actorParent, FAttachmentTransformRules::KeepWorldTransform);
+					FHitResult useless;
+					actorReference->K2_SetActorRelativeLocation(FVector::ZeroVector, false, useless , true);
+					actorReference->K2_SetActorRelativeRotation(FRotator::ZeroRotator, false, useless, true);
+					
+					//UE_LOG(LogTemp, Warning, TEXT("after local rotation %s | prev rotation %s"), *actorReference->GetActorRotation().ToString(), *spawnRotation.ToString());
+					
 					float angleRotate = FMath::RandRange(0.0f, 360.0f);
-					FRotator localRotation = {angleRotate, 0 , 0};
-					FVector rotatedVector = UKismetMathLibrary::RotateAngleAxis(actorReference->GetActorForwardVector(), angleRotate, actorReference->GetActorUpVector());
-					FRotator rotation = UKismetMathLibrary::FindLookAtRotation(actorReference->GetActorForwardVector(), rotatedVector);
-					actorReference->SetActorRotation(rotation);
+					FRotator localRotation = {0, angleRotate, 0};
+					
+					actorReference->K2_SetActorRelativeRotation(localRotation, false, useless, true);
+					//FRotator rot = actorReference->GetActorRotation();
+					actorReference->DetachFromActor(FDetachmentTransformRules::KeepWorldTransform);
+					actorParent->Destroy();
+					//UE_LOG(LogTemp, Warning, TEXT("Mid rotation %s, End rotation %s"), *rot.ToString(), *actorReference->GetActorRotation().ToString());
 				}
 			}
 		}
@@ -316,11 +356,14 @@ void AProceduraleObjectSpawner::SpawnObjects()
 		if (placeToSpawn != FVector::ZeroVector)
 		{
 			if (!alignObjectWithSurface)
+			{
 				actorReference->SetActorRotation(spawnRotation);
+				actorReference->SetActorLocation(placeToSpawn);
+			}
 			
 			if (SphapeCast(placeToSpawn, actorReference, surfaceTouched))
 				continue;
-			actorReference->SetActorLocation(placeToSpawn);
+			
 			actorsSpawned.Add(actorReference);
 			
 			nbSpawned ++;

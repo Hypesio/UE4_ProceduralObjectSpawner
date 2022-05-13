@@ -38,9 +38,9 @@ public:
 	UStaticMesh* meshToSpawn;
 	
     UPROPERTY(EditAnywhere, Category = MainParameters)
-    int numberToSpawn;
+    int numberToSpawn = 3;
     UPROPERTY(EditAnywhere, Category = MainParameters)
-    float spawnRadius;
+    float spawnRadius = 200;
     UPROPERTY(EditAnywhere, Category = MainParameters)
     bool onFloor;
 	UPROPERTY(EditAnywhere, Category = MainParameters)
@@ -72,6 +72,13 @@ public:
 
 	UPROPERTY(EditAnywhere, Category = AdvancedParameters)
 	float distanceMinBetweenObjects = 0;
+	/** Can objet ignore other object before spawn */
+	UPROPERTY(EditAnywhere, Category = AdvancedParameters)
+	bool allowObjectOverlap = false;
+	/** Can objet ignore other object spawned before spawn */
+	UPROPERTY(EditAnywhere, Category = AdvancedParameters, meta = (EditCondition = "!allowObjectOverlap"))
+	bool allowObjectSpawnOverlap = false;
+	
 	
 	/** StaticMesh => spawn on mesh of same type as actor in list will be forbidden
 	 * Actor => spawn on actors specified will be forbidden */
