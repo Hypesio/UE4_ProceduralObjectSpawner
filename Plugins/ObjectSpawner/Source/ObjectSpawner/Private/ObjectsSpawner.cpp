@@ -1,37 +1,49 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
 
-#include "ProceduraleObjectSpawner.h"
-
+#include "ObjectsSpawner.h"
+#include "CoreMinimal.h"
+#include "Components/ActorComponent.h"
+#include "Engine/World.h"
+#include "GameFramework/Actor.h"
+#include "Components/StaticMeshComponent.h"
+#include "Engine/StaticMesh.h"
+#include "CollisionShape.h"
+#include "Engine/StaticMeshActor.h"
+#include "Math/BoxSphereBounds.h"
+#include "Math/Rotator.h"
+#include "Engine/Engine.h"
+#include "Engine/EngineTypes.h"
+#include "Math/Vector.h"
 #include "DrawDebugHelpers.h"
 #include "Engine/StaticMeshActor.h"
 #include "Kismet/KismetMathLibrary.h"
 #include "Kismet/KismetSystemLibrary.h"
 
 // Sets default values
-AProceduraleObjectSpawner::AProceduraleObjectSpawner()
+AObjectsSpawner::AObjectsSpawner()
 {
- 	// Set this actor to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
+	// Set this actor to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
 	PrimaryActorTick.bCanEverTick = true;
 
 }
 
 // Called when the game starts or when spawned
-void AProceduraleObjectSpawner::BeginPlay()
+void AObjectsSpawner::BeginPlay()
 {
 	Super::BeginPlay();
 	
 }
 
 // Called every frame
-void AProceduraleObjectSpawner::Tick(float DeltaTime)
+void AObjectsSpawner::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 
 }
 
 // Shot a ray from start to end and return touched position
-FVector AProceduraleObjectSpawner::Raycast(FVector start, FVector end, FHitResult& outHit)
+FVector AObjectsSpawner::Raycast(FVector start, FVector end, FHitResult& outHit)
 {
 	FCollisionQueryParams collisionQueryParams;
 	collisionQueryParams.AddIgnoredActor(this->GetOwner());
@@ -47,7 +59,7 @@ FVector AProceduraleObjectSpawner::Raycast(FVector start, FVector end, FHitResul
 	return outHit.ImpactPoint;
 }
 
-bool AProceduraleObjectSpawner::SphapeCast(FVector placeToCheck, const AActor* actorToSpawn, const AActor *actorToIgnore)
+bool AObjectsSpawner::SphapeCast(FVector placeToCheck, const AActor* actorToSpawn, const AActor *actorToIgnore)
 {
 	if (allowObjectOverlap)
 		return false;
@@ -97,10 +109,11 @@ bool AProceduraleObjectSpawner::SphapeCast(FVector placeToCheck, const AActor* a
 	return false;
 }
 
-void AProceduraleObjectSpawner::ShowSpawnRadius(float durationVisible, FLinearColor sphereColor, float thickness)
+void AObjectsSpawner::ShowSpawnRadius(float durationVisible, FLinearColor sphereColor, float thickness)
 {
 	FVector extent = FVector(1,1,1);
 	extent.Normalize();
+	
 	UKismetSystemLibrary::DrawDebugSphere(this, GetActorLocation(), spawnRadius,  16, sphereColor, durationVisible, thickness);
 }
 
@@ -176,11 +189,11 @@ bool IsPointAtGoodDistance(const TArray<AActor *> spawnedActor, FVector spawnPla
 }
 
 // Spawn a blueprint or a mesh depending on parameters choosen
-AActor* AProceduraleObjectSpawner::SpawnActorNeeded(const FVector spawnPosition, const FRotator spawnRotation)
+AActor* AObjectsSpawner::SpawnActorNeeded(const FVector spawnPosition, const FRotator spawnRotation)
 {
 	UWorld* const world = GetWorld();
 	AActor* spawnedActor;
-	if (typeToSpawn == Blueprints)
+	if (typeToSpawn == Blueprint)
 	{
 		if (blueprintToSpawn == nullptr)
 		{
@@ -205,7 +218,7 @@ AActor* AProceduraleObjectSpawner::SpawnActorNeeded(const FVector spawnPosition,
 	return spawnedActor; 
 }
 
-void AProceduraleObjectSpawner::SpawnObjects()
+void AObjectsSpawner::SpawnObjects()
 {
 	FVector const spawnerPosition = GetActorLocation();
 	FRotator startRotation = GetActorRotation();
@@ -299,7 +312,7 @@ void AProceduraleObjectSpawner::SpawnObjects()
 			}
 			
 			//Check if the surface touched is forbidden
-			if (IsSurfaceForbidden(forbiddenList, typeForbidden == ForbiddenTypes::StaticMeshs, staticMesh, surfaceTouched))
+			if (IsSurfaceForbidden(forbiddenList, typeForbidden == ForbiddenType::StaticMesh, staticMesh, surfaceTouched))
 				continue;
 
 			if (!IsPointAtGoodDistance(actorsSpawned, outHit.Location, distanceMinBetweenObjects))

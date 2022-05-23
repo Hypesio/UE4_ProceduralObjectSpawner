@@ -1,0 +1,24 @@
+{
+	"FileVersion": 3,
+	"Version": 1,
+	"VersionName": "0.1",
+	"FriendlyName": "ObjectSpawner",
+	"Description": "Procedural Object Spawner",
+	"Category": "Other",
+	"CreatedBy": "Hypesio",
+	"CreatedByURL": "www.hypesio.fr",
+	"DocsURL": "",
+	"MarketplaceURL": "",
+	"SupportURL": "",
+	"CanContainContent": true,
+	"IsBetaVersion": true,
+	"IsExperimentalVersion": false,
+	"Installed": false,
+	"Modules": [
+		{
+			"Name": "ObjectSpawner",
+			"Type": "Runtime",
+			"LoadingPhase": "Default"
+		}
+	]
+}

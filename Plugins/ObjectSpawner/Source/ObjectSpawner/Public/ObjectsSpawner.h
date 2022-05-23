@@ -3,35 +3,49 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Components/ActorComponent.h"
+#include "Engine/World.h"
 #include "GameFramework/Actor.h"
-#include "ProceduraleObjectSpawner.generated.h"
+#include "Components/StaticMeshComponent.h"
+#include "Engine/StaticMesh.h"
+#include "CollisionShape.h"
+#include "Engine/StaticMeshActor.h"
+#include "Math/BoxSphereBounds.h"
+#include "Math/Rotator.h"
+#include "Engine/Engine.h"
+#include "Engine/EngineTypes.h"
+#include "Math/Vector.h"
+#include "ObjectsSpawner.generated.h"
+
+#pragma once
+
 
 UENUM()
-enum SpawnTypes
+enum SpawnType
 {
-	Meshs,
-	Blueprints
+	Mesh,
+	Blueprint
 };
 
 UENUM()
-enum ForbiddenTypes
+enum ForbiddenType
 {
-	StaticMeshs,
-	Actors
+	StaticMesh,
+	Actor
 };
 
 UCLASS()
-class PFE_3IS_API AProceduraleObjectSpawner : public AActor
+class OBJECTSPAWNER_API AObjectsSpawner : public AActor
 {
 	GENERATED_BODY()
 	
 	
 public:
 	// Sets default values for this actor's properties
-	AProceduraleObjectSpawner();
+	AObjectsSpawner();
 
 	UPROPERTY(EditAnywhere, Category = MainParameters)
-	TEnumAsByte<SpawnTypes> typeToSpawn;
+	TEnumAsByte<SpawnType> typeToSpawn;
     UPROPERTY(EditAnywhere, Category = MainParameters, meta = (EditCondition = "typeToSpawn == SpawnType::Blueprint"))
     UClass* blueprintToSpawn;
 	UPROPERTY(EditAnywhere, Category = MainParameters, meta = (EditCondition = "typeToSpawn == SpawnType::Mesh"))
@@ -83,7 +97,7 @@ public:
 	/** StaticMesh => spawn on mesh of same type as actor in list will be forbidden
 	 * Actor => spawn on actors specified will be forbidden */
 	UPROPERTY(EditAnywhere, Category = AdvancedParameters)
-	TEnumAsByte<ForbiddenTypes> typeForbidden = ForbiddenTypes::StaticMeshs;
+	TEnumAsByte<ForbiddenType> typeForbidden = ForbiddenType::StaticMesh;
 	UPROPERTY(EditAnywhere, Category = AdvancedParameters)
 	TArray<AActor*> forbiddenList;
 
