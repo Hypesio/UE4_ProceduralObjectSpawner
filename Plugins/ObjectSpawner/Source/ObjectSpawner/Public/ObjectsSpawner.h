@@ -130,5 +130,5 @@ public:
 private:
     FVector Raycast(FVector start, FVector end, FHitResult& outHit);
 	bool SphapeCast(FVector placeToCheck, const AActor* actorToSpawn, const AActor *actorToIgnore);
-	AActor* SpawnActorNeeded(const FVector spawnPosition, const FRotator spawnRotation);
+	AActor* SpawnActorNeeded(const FVector spawnPosition, const FRotator spawnRotation, AActor* parent);
 };

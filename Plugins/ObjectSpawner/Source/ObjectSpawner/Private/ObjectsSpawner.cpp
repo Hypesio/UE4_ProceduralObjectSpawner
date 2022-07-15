@@ -189,7 +189,7 @@ bool IsPointAtGoodDistance(const TArray<AActor *> spawnedActor, FVector spawnPla
 }
 
 // Spawn a blueprint or a mesh depending on parameters choosen
-AActor* AObjectsSpawner::SpawnActorNeeded(const FVector spawnPosition, const FRotator spawnRotation)
+AActor* AObjectsSpawner::SpawnActorNeeded(const FVector spawnPosition, const FRotator spawnRotation, AActor* parent)
 {
 	UWorld* const world = GetWorld();
 	AActor* spawnedActor;
@@ -200,6 +200,8 @@ AActor* AObjectsSpawner::SpawnActorNeeded(const FVector spawnPosition, const FRo
 			GEngine->AddOnScreenDebugMessage(-1, 2.5f, FColor::Yellow, TEXT("[ProceduraleObjectSpawner] No blueprint specified"));
 			return nullptr;
 		}
+		
+		
 		spawnedActor = world->SpawnActor(blueprintToSpawn, &spawnPosition, &spawnRotation);
 	}
 	else
@@ -215,6 +217,8 @@ AActor* AObjectsSpawner::SpawnActorNeeded(const FVector spawnPosition, const FRo
 		spawnedActor = spawnedMesh;
 	}
 
+	
+	spawnedActor->AttachToActor(parent, FAttachmentTransformRules::KeepWorldTransform); 
 	return spawnedActor; 
 }
 
@@ -226,18 +230,21 @@ void AObjectsSpawner::SpawnObjects()
 
 	// Create a reference to have mesh bounds data
 	FVector refPos = spawnerPosition + FVector::ForwardVector * spawnRadius * 2;
+
+	AActor* parent = GetWorld()->SpawnActor<AActor>(AActor::StaticClass());
+
 	
-	AActor* actorReference = SpawnActorNeeded(refPos, startRotation);
+	AActor* actorReference = SpawnActorNeeded(refPos, startRotation, parent);
 	if (actorReference == nullptr)
 		return;
 	TArray<AActor *> actorsSpawned;
-	
-	UStaticMeshComponent* staticMeshComp = actorReference->FindComponentByClass<UStaticMeshComponent>();
-	UStaticMesh* staticMesh = staticMeshComp->GetStaticMesh();
-	FBoxSphereBounds meshBounds;
-	if (staticMesh != NULL)
-		meshBounds = staticMesh->GetBounds();
 
+
+	UStaticMeshComponent* staticMeshComp = actorReference->FindComponentByClass<UStaticMeshComponent>();
+	FVector originalScale = actorReference->GetActorScale();
+	UStaticMesh* staticMesh = staticMeshComp->GetStaticMesh();
+
+	
 	int nbSpawned = 0;
 	int maxTry = numberToSpawn * maximumTryMultiplier;
 	int nbTry = 0;
@@ -254,8 +261,9 @@ void AObjectsSpawner::SpawnObjects()
 		AActor* surfaceTouched = NULL;
 
 		FRotator spawnRotation = RandomRotation(startRotation, randomXRotation, randomYRotation, randomZRotation);
-
-		FVector scale = actorReference->GetActorScale() * FMath::RandRange(scaleMin, scaleMax);
+		UE_LOG(LogTemp, Warning, TEXT("That's a trap ! "));
+		FVector scale = originalScale * FMath::RandRange(scaleMin, scaleMax);
+		UE_LOG(LogTemp, Warning, TEXT("Old scale : %s | new scale %s\n"), *originalScale.ToString(), *scale.ToString());
 		actorReference->SetActorScale3D(scale);
 		
 		if (onFloor || onWall || onCeiling)
@@ -334,7 +342,7 @@ void AObjectsSpawner::SpawnObjects()
 
 				if (randomXRotation || randomYRotation || randomZRotation)
 				{
-					AActor* actorParent = SpawnActorNeeded(actorReference->GetActorLocation(), actorReference->GetActorRotation());
+					AActor* actorParent = SpawnActorNeeded(actorReference->GetActorLocation(), actorReference->GetActorRotation(), parent);
 					
 					actorReference->AttachToActor(actorParent, FAttachmentTransformRules::KeepWorldTransform);
 					FHitResult useless;
@@ -380,7 +388,7 @@ void AObjectsSpawner::SpawnObjects()
 			actorsSpawned.Add(actorReference);
 			
 			nbSpawned ++;
-			actorReference = SpawnActorNeeded(refPos, startRotation);
+			actorReference = SpawnActorNeeded(refPos, startRotation, parent);
 			staticMeshComp = actorReference->FindComponentByClass<UStaticMeshComponent>();
 			staticMesh = staticMeshComp->GetStaticMesh();
 		}
